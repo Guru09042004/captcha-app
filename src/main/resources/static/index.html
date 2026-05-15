@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CAPTCHA - Indian Voice</title>
+    <style>
+        body {
+            background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 100%);
+            font-family: 'Segoe UI', Arial, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            background: rgba(30, 30, 50, 0.95);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+        }
+        h1 { color: #fff; margin-bottom: 10px; }
+        .badge { color: #ff6f91; font-size: 12px; margin-bottom: 30px; }
+        .captcha-box {
+            background: #0d0d16;
+            border: 2px solid #ff6f91;
+            border-radius: 15px;
+            padding: 30px;
+            margin: 20px 0;
+        }
+        .captcha-text {
+            font-size: 48px;
+            font-family: monospace;
+            letter-spacing: 10px;
+            color: #ff6f91;
+            font-weight: bold;
+        }
+        input {
+            width: 100%;
+            padding: 15px;
+            font-size: 24px;
+            text-align: center;
+            font-family: monospace;
+            background: #0d0d16;
+            border: 2px solid #4a4a6e;
+            border-radius: 10px;
+            color: #fff;
+            margin: 15px 0;
+            box-sizing: border-box;
+        }
+        button {
+            background: #7c6fff;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            margin: 5px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+        button:hover { opacity: 0.8; transform: scale(1.02); }
+        .hear-btn { background: #ff6f91; }
+        .verify-btn { background: #4fffb0; color: #000; }
+        .status {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 10px;
+            font-size: 14px;
+        }
+        .success { background: rgba(79,255,176,0.2); color: #4fffb0; }
+        .error { background: rgba(255,79,111,0.2); color: #ff6f91; }
+        .info { background: rgba(124,111,255,0.2); color: #7c6fff; }
+        .attempts { color: #888; font-size: 12px; margin-top: 15px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 CAPTCHA Verification</h1>
+        <div class="badge">🇮🇳 Indian Voice</div>
+        
+        <div class="captcha-box">
+            <div class="captcha-text" id="captchaText">------</div>
+        </div>
+        
+        <input type="text" id="answerInput" placeholder="Enter 6 characters" maxlength="6" autocomplete="off">
+        
+        <div>
+            <button id="newBtn">New CAPTCHA</button>
+            <button id="hearBtn" class="hear-btn">Hear Voice</button>
+            <button id="verifyBtn" class="verify-btn">Verify</button>
+        </div>
+        
+        <div id="status" class="status info">Click "New CAPTCHA" to start</div>
+        <div id="attempts" class="attempts">Attempts: 0/3</div>
+    </div>
+
+    <script>
+        let currentCaptcha = '';
+        let attempts = 0;
+        const MAX_ATTEMPTS = 3;
+        
+        async function generateCaptcha() {
+            try {
+                const response = await fetch('/api/captcha/generate');
+                const data = await response.json();
+                currentCaptcha = data.captchaText;
+                document.getElementById('captchaText').innerHTML = currentCaptcha;
+                document.getElementById('status').innerHTML = '✅ New CAPTCHA generated!';
+                document.getElementById('status').className = 'status success';
+                document.getElementById('answerInput').value = '';
+                document.getElementById('answerInput').focus();
+            } catch (error) {
+                document.getElementById('status').innerHTML = '❌ Server error! Make sure backend is running.';
+                document.getElementById('status').className = 'status error';
+            }
+        }
+        
+        async function hearCaptcha() {
+            if (!currentCaptcha) {
+                alert('Generate CAPTCHA first!');
+                return;
+            }
+            const audioUrl = '/api/captcha/audio/' + currentCaptcha;
+            const audio = new Audio(audioUrl);
+            audio.play();
+            document.getElementById('status').innerHTML = '🔊 Playing Indian female voice...';
+            document.getElementById('status').className = 'status info';
+        }
+        
+        async function verifyCaptcha() {
+            const userInput = document.getElementById('answerInput').value.toUpperCase();
+            
+            if (!userInput || userInput.length < 6) {
+                document.getElementById('status').innerHTML = '⚠️ Enter all 6 characters!';
+                document.getElementById('status').className = 'status error';
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/captcha/validate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ answer: userInput })
+                });
+                const data = await response.json();
+                
+                if (data.valid) {
+                    document.getElementById('status').innerHTML = '✅ CORRECT! Verification successful! 🎉';
+                    document.getElementById('status').className = 'status success';
+                    attempts = 0;
+                    document.getElementById('attempts').innerHTML = `Attempts: ${attempts}/${MAX_ATTEMPTS}`;
+                    generateCaptcha();
+                } else {
+                    attempts++;
+                    document.getElementById('attempts').innerHTML = `Attempts: ${attempts}/${MAX_ATTEMPTS}`;
+                    document.getElementById('status').innerHTML = `❌ WRONG! ${MAX_ATTEMPTS - attempts} attempts remaining.`;
+                    document.getElementById('status').className = 'status error';
+                    document.getElementById('answerInput').value = '';
+                    
+                    if (attempts >= MAX_ATTEMPTS) {
+                        attempts = 0;
+                        generateCaptcha();
+                        document.getElementById('status').innerHTML = '🔄 Max attempts reached. New CAPTCHA generated!';
+                    }
+                }
+            } catch (error) {
+                document.getElementById('status').innerHTML = '❌ Server error!';
+                document.getElementById('status').className = 'status error';
+            }
+        }
+        
+        document.getElementById('newBtn').addEventListener('click', () => {
+            attempts = 0;
+            document.getElementById('attempts').innerHTML = `Attempts: ${attempts}/${MAX_ATTEMPTS}`;
+            generateCaptcha();
+        });
+        document.getElementById('hearBtn').addEventListener('click', hearCaptcha);
+        document.getElementById('verifyBtn').addEventListener('click', verifyCaptcha);
+        document.getElementById('answerInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') verifyCaptcha();
+        });
+        
+        generateCaptcha();
+    </script>
+</body>
+</html>
